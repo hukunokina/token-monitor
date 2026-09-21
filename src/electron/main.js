@@ -160,6 +160,13 @@ const {
   shouldSkipAppUpdateCheck,
   updateInstallQuitPolicy
 } = require('../shared/appUpdater');
+
+// Self-built fork: the updater feed points at upstream (Javis603) releases, so a
+// check or download would offer to replace this build. Every path into the
+// updater — startup, hourly, the settings toggle and "Check for updates" —
+// funnels through runAppUpdateCheck / downloadAndPrepareAppUpdate, which return
+// the current state untouched while this is false.
+const APP_UPDATES_ENABLED = false;
 const cursorAuth = require('../shared/providers/cursor/auth');
 const cursorProbe = require('../shared/providers/cursor/probe');
 const opencodeWeb = require('../shared/providers/opencode/web');
@@ -6376,6 +6383,7 @@ function sendAppUpdatePush() {
 }
 
 async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {}) {
+  if (!APP_UPDATES_ENABLED) return deriveAppUpdateState();
   // An outstanding install owns the updater until the guard is idle again.
   // electron-updater reports a failed check by emitting on the same global 'error'
   // event an install failure arrives on -- checkForUpdates() emits there and
@@ -6475,7 +6483,7 @@ function maybeRunBackgroundUpdateCheck() {
 }
 
 function startAppUpdateBackgroundChecks() {
-  if (appUpdateBackgroundTimer) return;
+  if (!APP_UPDATES_ENABLED || appUpdateBackgroundTimer) return;
   appUpdateBackgroundTimer = setInterval(maybeRunBackgroundUpdateCheck, 60 * 60 * 1000);
   appUpdateBackgroundTimer.unref?.();
 }
@@ -6492,6 +6500,7 @@ function dismissAppUpdateVersion(version) {
 }
 
 async function downloadAndPrepareAppUpdate() {
+  if (!APP_UPDATES_ENABLED) return deriveAppUpdateState();
   const support = appUpdateInstallSupport({ isPackaged: app.isPackaged, platform: process.platform, env: process.env });
   if (!support.supported) {
     setNativeAppUpdateState({ phase: 'error', error: support.reason || 'unsupported-platform', progress: null });
@@ -7157,10 +7166,10 @@ app.whenReady().then(() => {
     const previousShowTrayProviderBadge = settings.showTrayProviderBadge;
     const previousOpenCodeLocalLimitsEnabled = settings.opencodeLocalLimitsEnabled === true;
     const previousCurrency = settings.currency;
+    const previousAutomaticAppUpdates = settings.automaticAppUpdates;
     const previousCompactTokenUnits = settings.compactTokenUnits;
     const previousLanguage = settings.language;
     const previousStartAtLogin = settings.startAtLogin;
-    const previousAutomaticAppUpdates = settings.automaticAppUpdates;
     const previousCustomModelPricing = JSON.stringify(settings.customModelPricing || []);
     const normalizedCurrency = patch.currency !== undefined ? normalizeCurrency(patch.currency, settings.currency) : normalizeCurrency(settings.currency);
     const normalizedPatch = { ...patch, currency: normalizedCurrency };
