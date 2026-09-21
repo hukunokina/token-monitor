@@ -118,7 +118,8 @@ const LIMIT_PROVIDER_CONNECTION_DETAIL_KEYS = {
   antigravity: 'settings.limits.connection.antigravity',
   grok: 'settings.limits.connection.grok',
   kiro: 'settings.limits.connection.kiro',
-  workbuddy: 'settings.limits.connection.workbuddy'
+  workbuddy: 'settings.limits.connection.workbuddy',
+  muse: 'settings.limits.connection.muse'
 };
 const TRAY_ICON_VARIANTS = [
   { id: 'claude-brand', label: 'Claude', after: 'claude' },

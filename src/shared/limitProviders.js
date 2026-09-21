@@ -51,6 +51,7 @@
     { id: 'workbuddy', label: 'WorkBuddy' },
     { id: 'qoder', label: 'Qoder' },
     { id: 'deepseek', label: 'DeepSeek' },
+    { id: 'muse', label: 'Muse Code' },
     { id: 'openrouter', label: 'OpenRouter' },
     { id: 'minimax', label: 'Minimax' },
     { id: 'volcengine', label: 'Volcengine' },

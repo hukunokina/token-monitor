@@ -36,6 +36,7 @@ const { ollamaSessionCookie, fetchOllamaLimits } = ollamaLimits;
 const kimiLimits = require('../providers/kimi/limits');
 const { kimiToken, kimiWebToken, fetchKimiLimits } = kimiLimits;
 const workbuddyLimits = require('../providers/workbuddy/limits');
+const museLimits = require('../providers/muse/limits');
 const traeLimits = require('../providers/trae/limits');
 const zedLimits = require('../providers/zed/limits');
 const {
@@ -141,6 +142,7 @@ function providerFetchers(deps = {}) {
     workbuddy: (providerOptions, probeDeps) => workbuddyLimits.fetchWorkbuddyLimits(providerOptions, probeDeps),
     qoder: (providerOptions, probeDeps) => qoderLimits.fetchQoderLimits(providerOptions, probeDeps),
     deepseek: (providerOptions, probeDeps) => fetchDeepSeekLimits(providerOptions, probeDeps),
+    muse: (providerOptions, probeDeps) => museLimits.fetchMuseLimits(providerOptions, probeDeps),
     openrouter: (providerOptions, probeDeps) => openrouterLimits.fetchOpenRouterLimits(providerOptions, probeDeps),
     minimax: (providerOptions, probeDeps) => minimaxLimits.fetchMinimaxLimits(providerOptions, probeDeps),
     volcengine: (providerOptions, probeDeps) => volcengineLimits.fetchVolcengineLimits(providerOptions, probeDeps),

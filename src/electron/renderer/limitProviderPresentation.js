@@ -36,6 +36,7 @@
     workbuddy: { local: 'Local', api: 'API' },
     qoder: { web: 'Web' },
     deepseek: { api: 'API' },
+    muse: { oauth: 'OAuth' },
     openrouter: { api: 'API' },
     minimax: { api: 'API' },
     volcengine: { api: 'API', cli: 'arkcli' },
@@ -71,6 +72,7 @@
     workbuddy: ['Auto', 'Desktop app'],
     qoder: ['Manual login', 'Web'],
     deepseek: ['Pay-as-you-go', 'API key'],
+    muse: ['Auto', 'OAuth/CLI'],
     openrouter: ['Pay-as-you-go', 'API key'],
     minimax: ['Token Plan', 'API key'],
     volcengine: ['Auto', 'API key', 'CLI'],
@@ -440,6 +442,7 @@
       if (providerName === 'openrouter' || providerName === 'deepseek' || providerName === 'minimax' || providerName === 'factory' || providerName === 'zai' || providerName === 'zaiteam' || providerName === 'volcengine' || providerName === 'kimi') return { label: 'Add API key', tone: 'setup' };
       if (providerName === 'grok') return { label: 'Run grok login', tone: 'setup' };
       if (providerName === 'kiro') return { label: 'Run kiro-cli login', tone: 'setup' };
+      if (providerName === 'muse') return { label: 'Run muse login', tone: 'setup' };
       return { label: 'Not set up', tone: 'setup' };
     }
     return status ? { label: 'Error', tone: 'warn' } : null;
