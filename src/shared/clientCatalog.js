@@ -69,7 +69,10 @@
     { id: 'dsh', label: 'DeepSeek Harness' },
     { id: 'cherrystudio', label: 'Cherry Studio' },
     { id: 'lmstudio', label: 'LM Studio' },
-    { id: 'unsloth', label: 'Unsloth' }
+    { id: 'unsloth', label: 'Unsloth' },
+    // Parsed locally until the vendored tokscale build carries upstream's Muse
+    // Code parser (junhoyeo/tokscale d409ee07, after the 4.17.0 baseline).
+    { id: 'muse', label: 'Muse Code', locallyParsed: true }
   ].map((client) => Object.freeze({
     defaultTracked: true,
     locallyParsed: false,

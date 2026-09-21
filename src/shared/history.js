@@ -40,7 +40,9 @@ function normalizeTimeMetrics(value) {
 
 // Tokscale emits these clients' reasoning as a disjoint JSON bucket. History
 // uses the same reasoning-inclusive public output convention as usage.js.
-const TOKSCALE_DISJOINT_REASONING_CLIENTS = new Set([REASONIX_CLIENT, 'codex', 'droid', 'dsh']);
+// Muse Code's local adapter (providers/muse/usage.js) splits reasoning out of
+// output exactly as tokscale's muse.rs does, so it joins the disjoint set.
+const TOKSCALE_DISJOINT_REASONING_CLIENTS = new Set([REASONIX_CLIENT, 'codex', 'droid', 'dsh', 'muse']);
 
 function hasDisjointReasoning(client) {
   return TOKSCALE_DISJOINT_REASONING_CLIENTS.has(String(client).trim().toLowerCase());

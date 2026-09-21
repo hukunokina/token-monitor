@@ -57,6 +57,7 @@ const {
   kimiWorkSessionsRoots
 } = require('./providers/kimi/sessionMetadata');
 const { buildPromaHistoryGraph, buildPromaPeriods, collectPromaRows } = require('./providers/proma/usage');
+const { buildMuseHistoryGraph, buildMusePeriods, collectMuseRows, museSessionsRoot } = require('./providers/muse/usage');
 const {
   buildQoderCnHistoryGraph,
   buildQoderCnPeriods,
@@ -1043,6 +1044,10 @@ async function collectHistoryOnce(options) {
     rawGraphs.push(options.promaGraph);
     histories.push(normalizeHistory(parseGraphResult(options.promaGraph), { capDays, todayKey }));
   }
+  if (options.museGraph) {
+    rawGraphs.push(options.museGraph);
+    histories.push(normalizeHistory(parseGraphResult(options.museGraph), { capDays, todayKey }));
+  }
   if (options.qoderCnGraph) {
     rawGraphs.push(options.qoderCnGraph);
     histories.push(normalizeHistory(parseGraphResult(options.qoderCnGraph), { capDays, todayKey }));
@@ -1151,6 +1156,7 @@ async function collectUsageOnce(options) {
   const localClients = new Set(PARSE_LOCAL_CLIENTS);
   const tokscaleClients = normalizedClients ? normalizedClients.split(',').filter((c) => !localClients.has(c)).join(',') : normalizedClients;
   const includesProma = normalizedClients.split(',').includes('proma');
+  const includesMuse = normalizedClients.split(',').includes('muse');
   const includesQoderCn = normalizedClients.split(',').includes('qodercn');
   const trackedClientSet = new Set(normalizedClients.split(',').filter(Boolean));
   const targetClients = [...new Set(normalizeClientsCsv(options.targetClients).split(',').filter((client) => trackedClientSet.has(client)))];
@@ -1178,6 +1184,9 @@ async function collectUsageOnce(options) {
   let promaPeriods = null;
   let promaRows = null;
   let promaPricing = null;
+  let musePeriods = null;
+  let museRows = null;
+  let musePricing = null;
   let qoderCnPeriods = null;
   let qoderCnRows = null;
   let qoderCnPricing = null;
@@ -1226,6 +1235,24 @@ async function collectUsageOnce(options) {
         };
       } catch (err) {
         if (typeof options.logger === 'function') options.logger(`proma parse failed: ${err.message}`);
+      }
+    }
+    if (includesMuse && (!targetRequested || targetClients.includes('muse'))) {
+      try {
+        museRows = collectMuseRows({ homeDir: options.homeDir });
+        musePricing = await resolveModelPricing(museRows, {
+          lookupModelPricing: options.lookupModelPricing,
+          commandTimeoutMs: options.pricingTimeoutMs ?? Math.min(commandTimeoutMs || PROMA_PRICING_LOOKUP_TIMEOUT_MS, PROMA_PRICING_LOOKUP_TIMEOUT_MS),
+          pricingRevision: options.pricingRevision
+        });
+        const museJson = buildMusePeriods({ now: collectedAt, allTimeSince, rows: museRows, pricingByModel: musePricing });
+        musePeriods = {
+          today: extractUsageFromTokscale(museJson.today),
+          month: extractUsageFromTokscale(museJson.month),
+          allTime: extractUsageFromTokscale(museJson.allTime)
+        };
+      } catch (err) {
+        if (typeof options.logger === 'function') options.logger(`muse parse failed: ${err.message}`);
       }
     }
     if (includesQoderCn && (!targetRequested || targetClients.includes('qodercn'))) {
@@ -1298,6 +1325,7 @@ async function collectUsageOnce(options) {
         }
       }
       if (promaPeriods) freshPartitions.proma = promaPeriods.today;
+      if (musePeriods) freshPartitions.muse = musePeriods.today;
       if (qoderCnPeriods) freshPartitions.qodercn = qoderCnPeriods.today;
       if (qoderCnPeriodReadFailed && anchor.todayPartitions?.qodercn) {
         // A transient local.db read failure must not turn the existing Qoder CN
@@ -1364,6 +1392,12 @@ async function collectUsageOnce(options) {
       month = mergePeriods(month, promaPeriods.month);
       allTime = mergePeriods(allTime, promaPeriods.allTime);
       todayPartitions = { ...(todayPartitions || {}), proma: promaPeriods.today };
+    }
+    if (musePeriods && !anchorUsed) {
+      today = mergePeriods(today, musePeriods.today);
+      month = mergePeriods(month, musePeriods.month);
+      allTime = mergePeriods(allTime, musePeriods.allTime);
+      todayPartitions = { ...(todayPartitions || {}), muse: musePeriods.today };
     }
     if (qoderCnPeriods && !anchorUsed) {
       today = mergePeriods(today, qoderCnPeriods.today);
@@ -1587,6 +1621,7 @@ async function collectUsageOnce(options) {
     const history = await collectHistoryOnce({
       clients: tokscaleClients,
       promaGraph: includesProma ? buildPromaHistoryGraph({ rows: promaRows || collectPromaRows(), pricingByModel: promaPricing || {} }) : null,
+      museGraph: includesMuse ? buildMuseHistoryGraph({ rows: museRows || collectMuseRows({ homeDir: options.homeDir }), pricingByModel: musePricing || {} }) : null,
       qoderCnGraph: historyQoderCnGraph || null,
       historyEnabled: options.historyEnabled,
       commandTimeoutMs: options.historyTimeoutMs,
@@ -1947,6 +1982,9 @@ function clientSourceRoots(clientsCsv, options = {}) {
   );
   // Proma — session transcripts at ~/.proma/agent-sessions/*.jsonl
   add('proma', ['proma-sessions', path.join(home, '.proma', 'agent-sessions')]);
+  // Muse Code — <XDG data>/muse/sessions/YYYY/MM/DD/<uuid>/session.jsonl, the
+  // same ~/.local/share layout on Windows (mirrors tokscale's PathRoot::XdgData).
+  add('muse', ['muse-sessions', museSessionsRoot({ homeDir: home, env: process.env })]);
   // Qoder CN — SQLite DB under the platform Application Support dir.
   const qoderCnPaths = qoderCnDataPaths({ homeDir: home, platform: process.platform, env: process.env });
   add('qodercn', ...qoderCnPaths.dbPaths.map((dbPath) => ['qodercn-db', path.dirname(dbPath), dbPath]));
@@ -2328,6 +2366,11 @@ function watchPolicyEntries(clientsCsv, options = {}) {
   // watch root — the home AND every profile dir under it — is kept by the
   // matcher itself, so a profile's own database still reports.
   bound('hermes', candidates.hermes || [], (parts) => !HERMES_DB_FILES.has(parts[parts.length - 1]));
+
+  // Muse Code: transcripts sit at YYYY/MM/DD/<uuid>/ (and subagent/<uuid>/ under
+  // that); .msp-view-v1/ holds the TUI's binary view journals, which churn on
+  // every keystroke and never carry usage.
+  bound('muse', candidates.muse || [], (parts) => parts[0] === '.msp-view-v1');
 
   bound('openclaw', candidates.openclaw || [], (parts) => {
     // The first level is the dynamic agent id. Keep it so newly created agents
