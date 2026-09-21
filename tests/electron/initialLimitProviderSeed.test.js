@@ -125,3 +125,62 @@ test('the settings path cancels pending discovery only after a successful save',
       < updateHandler.indexOf('initialLimitProvidersPending = false;')
   );
 });
+
+// Providers added to the catalog after an install first ran.
+const { applyNewLimitProviderSeed } = require('../../src/electron/initialLimitProviderSeed');
+const {
+  LIMIT_PROVIDER_CATALOG_GENERATION,
+  limitProvidersAddedAfter
+} = require('../../src/shared/limitProviders');
+
+test('limitProvidersAddedAfter lists only providers newer than the seen generation', () => {
+  assert.deepEqual(limitProvidersAddedAfter(1), ['muse']);
+  assert.deepEqual(limitProvidersAddedAfter(undefined), ['muse']);
+  assert.deepEqual(limitProvidersAddedAfter(LIMIT_PROVIDER_CATALOG_GENERATION), []);
+});
+
+test('a newly wired provider is enabled once when its source is detected, and the generation is recorded', () => {
+  const settings = { limitProviders: 'claude,codex' }; // pre-generation install: no field
+  const events = [];
+  const deps = {
+    settings,
+    saveSettings: () => { events.push(`save:${settings.limitProviders}`); return true; },
+    onPersisted: () => events.push('reconfigure')
+  };
+  const summary = { clientHealth: { clients: { muse: { source: { state: 'detected' } }, claude: { source: { state: 'detected' } } } } };
+
+  assert.equal(applyNewLimitProviderSeed(summary, deps), true);
+  assert.equal(settings.limitProviders, 'claude,codex,muse');
+  assert.equal(settings.limitProviderCatalogGeneration, LIMIT_PROVIDER_CATALOG_GENERATION);
+  assert.deepEqual(events, ['save:claude,codex,muse', 'reconfigure']);
+
+  // The user turns it off afterwards: a later snapshot must not re-enable it.
+  settings.limitProviders = 'claude,codex';
+  assert.equal(applyNewLimitProviderSeed(summary, deps), false);
+  assert.equal(settings.limitProviders, 'claude,codex');
+});
+
+test('an undetected new provider stays off but the generation still advances', () => {
+  const settings = { limitProviders: 'claude', limitProviderCatalogGeneration: 1 };
+  let saves = 0;
+  const deps = { settings, saveSettings: () => { saves += 1; return true; }, onPersisted: () => assert.fail('nothing to reconfigure') };
+  assert.equal(applyNewLimitProviderSeed({ clientHealth: { clients: { claude: { source: { state: 'detected' } } } } }, deps), false);
+  assert.equal(settings.limitProviders, 'claude');
+  assert.equal(settings.limitProviderCatalogGeneration, LIMIT_PROVIDER_CATALOG_GENERATION);
+  assert.equal(saves, 1);
+  assert.equal(applyNewLimitProviderSeed({ clientHealth: { clients: { muse: { source: { state: 'detected' } } } } }, deps), false);
+  assert.equal(saves, 1);
+});
+
+test('a failed save restores the previous selection and generation', () => {
+  const settings = { limitProviders: 'claude' };
+  const deps = { settings, saveSettings: () => false };
+  assert.equal(applyNewLimitProviderSeed({ clientHealth: { clients: { muse: { source: { state: 'detected' } } } } }, deps), false);
+  assert.equal(settings.limitProviders, 'claude');
+  assert.equal(settings.limitProviderCatalogGeneration, undefined);
+});
+
+test('main.js runs the new-provider seed beside the first-run seed', () => {
+  assert.match(main, /const added = applyNewLimitProviderSeed\(summary, \{/);
+  assert.match(main, /limitProviderCatalogGeneration: 1,/);
+});

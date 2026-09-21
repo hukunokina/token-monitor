@@ -88,7 +88,7 @@ const {
 const { deviceRecordFromAnchor } = require('../shared/anchorSeed');
 const { sendWhenRendererReady } = require('./deferredWindowSend');
 const { actionWindowForEvent, handoffWindow, showWindow } = require('./windowLifecycle');
-const { applyInitialLimitProviderSeed } = require('./initialLimitProviderSeed');
+const { applyInitialLimitProviderSeed, applyNewLimitProviderSeed } = require('./initialLimitProviderSeed');
 const { createDeviceRuntime } = require('../shared/deviceRuntime');
 const { createDiagnosticJournal } = require('../shared/diagnosticJournal');
 const { createDiagnosticReportGenerator } = require('./diagnostics');
@@ -583,6 +583,8 @@ function defaultSettings() {
     modelAliasGrouping: 'off',
     limitsEnabled: parseBoolean(process.env.TOKEN_MONITOR_LIMITS_ENABLED, true),
     limitProviders: parseLimitProviders(process.env.TOKEN_MONITOR_LIMIT_PROVIDERS).join(','),
+    // Installs that predate this field have seen generation 1 (see limitProviders.js).
+    limitProviderCatalogGeneration: 1,
     limitProviderOrder: defaultLimitProviderOrder(),
     homeLimitProviderOrder: '',
     hiddenHomeLimitProviders: '',
@@ -2714,7 +2716,7 @@ function saveSettings(options = {}) {
 }
 
 function seedInitialLimitProviders(summary) {
-  return applyInitialLimitProviderSeed(initialLimitProvidersPending, summary, {
+  const seeded = applyInitialLimitProviderSeed(initialLimitProvidersPending, summary, {
     settings,
     saveSettings,
     onPersisted() {
@@ -2724,6 +2726,17 @@ function seedInitialLimitProviders(summary) {
       pushSettingsToRenderer();
     }
   });
+  // Providers wired after this install first ran light up once their source is
+  // detected; a no-op once the recorded catalog generation is current.
+  const added = applyNewLimitProviderSeed(summary, {
+    settings,
+    saveSettings,
+    onPersisted() {
+      deviceRuntimeHandle?.reconfigureLimits(electronLimitsConfig());
+      pushSettingsToRenderer();
+    }
+  });
+  return seeded || added;
 }
 
 function loginItemEnabledHere() {

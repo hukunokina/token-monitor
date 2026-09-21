@@ -69,6 +69,21 @@
     LIMIT_PROVIDER_CATALOG.map(({ id, label }) => [id, label])
   ));
 
+  // A saved provider selection is user intent and is never expanded wholesale
+  // (see migrateLimitProviders in main.js), so a provider wired after an install
+  // first ran would stay off until found in Settings. Each addition bumps the
+  // catalog generation; an install records the generation it has seen and
+  // enables only the providers newer than that whose local source is detected.
+  // Everything present before this bookkeeping existed counts as generation 1.
+  const LIMIT_PROVIDER_CATALOG_GENERATION = 2;
+  const LIMIT_PROVIDER_GENERATIONS = Object.freeze({ muse: 2 });
+
+  function limitProvidersAddedAfter(generation) {
+    const seen = Number(generation);
+    const floor = Number.isFinite(seen) && seen > 0 ? seen : 1;
+    return LIMIT_PROVIDER_IDS.filter((id) => (LIMIT_PROVIDER_GENERATIONS[id] || 1) > floor);
+  }
+
   // Collection client ids normally match their Limits provider id. Keep the
   // exceptions explicit here.
   const LIMIT_PROVIDER_BY_CLIENT = Object.freeze({
@@ -121,11 +136,14 @@
 
   return {
     LIMIT_PROVIDER_CATALOG,
+    LIMIT_PROVIDER_CATALOG_GENERATION,
+    LIMIT_PROVIDER_GENERATIONS,
     LIMIT_PROVIDER_IDS,
     LIMIT_PROVIDER_LABELS,
     LIMIT_WINDOW_METRICS,
     VALID_LIMIT_WINDOW_METRICS,
     limitProviderForClient,
+    limitProvidersAddedAfter,
     limitProvidersForDetectedClients
   };
 });
